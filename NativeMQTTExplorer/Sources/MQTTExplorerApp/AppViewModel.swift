@@ -1,0 +1,109 @@
+import SwiftUI
+import MQTTExplorerBackend
+import Combine
+
+/// ViewModel node that conforms to Destroyable for use as the Tree's generic parameter.
+final class AppViewModelNode: Destroyable, @unchecked Sendable {
+    func destroy() {}
+}
+
+/// Central coordinator: owns the ConnectionManager and Tree, bridges backend events to SwiftUI.
+@MainActor
+final class AppViewModel: ObservableObject {
+    @Published var connectionState: DataSourceState = .init()
+    @Published var treeVersion: Int = 0
+    @Published var connectedHost: String = ""
+    @Published var isConnecting: Bool = false
+
+    let connectionManager = ConnectionManager()
+    let tree = Tree<AppViewModelNode>()
+
+    private var currentConnectionId: String = ""
+
+    init() {
+        tree.startUpdates()
+    }
+
+    // MARK: - Connection
+
+    func connect(host: String, port: UInt16, tls: Bool, username: String, password: String, subscriptions: [MQTTExplorerBackend.Subscription]) {
+        isConnecting = true
+        currentConnectionId = UUID().uuidString
+        connectedHost = host
+
+        let protocolStr = tls ? "mqtts" : "mqtt"
+        let url = "\(protocolStr)://\(host):\(port)"
+
+        let options = MqttOptions(
+            url: url,
+            username: username.isEmpty ? nil : username,
+            password: password.isEmpty ? nil : password,
+            tls: tls,
+            certValidation: true,
+            clientId: "MQTTExplorer-\(UUID().uuidString.prefix(8))",
+            subscriptions: subscriptions
+        )
+
+        connectionManager.connect(
+            id: currentConnectionId,
+            options: options,
+            onMessage: { [weak self] topic, payload, qos, retain, msgId in
+                guard let self else { return }
+                Task { @MainActor in
+                    self.tree.receiveMessage(
+                        topic: topic,
+                        payload: payload,
+                        qos: qos,
+                        retain: retain,
+                        messageId: msgId
+                    )
+                }
+            },
+            onStateChange: { [weak self] state in
+                guard let self else { return }
+                Task { @MainActor in
+                    self.connectionState = state
+                    if state.connected {
+                        self.isConnecting = false
+                    } else if state.error != nil {
+                        self.isConnecting = false
+                    }
+                }
+            }
+        )
+
+        // Observe tree updates for UI refresh
+        tree.didUpdate.subscribe { [weak self] in
+            guard let self else { return }
+            Task { @MainActor in
+                self.treeVersion += 1
+            }
+        }
+    }
+
+    func disconnect() {
+        connectionManager.disconnect(connectionId: currentConnectionId)
+        connectedHost = ""
+        connectionState = .init()
+        isConnecting = false
+    }
+
+    // MARK: - Publish
+
+    func publish(topic: String, payload: String, qos: QoSType = .atMostOnce, retain: Bool = false) {
+        let msg = Base64Message.from(string: payload)
+        connectionManager.publish(
+            connectionId: currentConnectionId,
+            topic: topic,
+            payload: msg,
+            qos: qos,
+            retain: retain
+        )
+    }
+
+    // MARK: - Tree access
+
+    var rootEdges: [MQTTExplorerBackend.Edge<AppViewModelNode>] {
+        tree.edgeArray
+    }
+}
