@@ -15,6 +15,8 @@ final class AppViewModel: ObservableObject {
     @Published var connectedHost: String = ""
     @Published var isConnecting: Bool = false
     @Published var rootEdgeNames: [String] = []
+    @Published var totalMessageCount: Int = 0
+    @Published var connectionElapsed: String = ""
 
     let connectionManager = ConnectionManager()
     let tree = Tree<AppViewModelNode>()
@@ -23,6 +25,13 @@ final class AppViewModel: ObservableObject {
 
     init() {
         tree.startUpdates()
+
+        // Subscribe once to tree updates
+        tree.didUpdate.subscribe { [weak self] in
+            guard let self else { return }
+            self.treeVersion += 1
+            self.rootEdgeNames = self.tree.edgeArray.map(\.name)
+        }
     }
 
     // MARK: - Connection
@@ -50,6 +59,7 @@ final class AppViewModel: ObservableObject {
             options: options,
             onMessage: { [weak self] topic, payload, qos, retain, msgId in
                 guard let self else { return }
+                self.totalMessageCount &+= 1
                 self.tree.receiveMessage(
                     topic: topic,
                     payload: payload,
@@ -64,19 +74,13 @@ final class AppViewModel: ObservableObject {
                     self.connectionState = state
                     if state.connected {
                         self.isConnecting = false
+                        self.startElapsedTimer()
                     } else if state.error != nil {
                         self.isConnecting = false
                     }
                 }
             }
         )
-
-        // Observe tree updates for UI refresh
-        tree.didUpdate.subscribe { [weak self] in
-            guard let self else { return }
-            self.treeVersion += 1
-            self.rootEdgeNames = self.tree.edgeArray.map(\.name)
-        }
     }
 
     func disconnect() {
@@ -84,6 +88,8 @@ final class AppViewModel: ObservableObject {
         connectedHost = ""
         connectionState = .init()
         isConnecting = false
+        totalMessageCount = 0
+        connectionElapsed = ""
     }
 
     // MARK: - Publish
@@ -103,5 +109,29 @@ final class AppViewModel: ObservableObject {
 
     var rootEdges: [MQTTExplorerBackend.Edge<AppViewModelNode>] {
         tree.edgeArray
+    }
+
+    // MARK: - Elapsed timer
+
+    private var elapsedTimer: Timer?
+    private var connectionStartTime: Date?
+
+    private func startElapsedTimer() {
+        let start = Date()
+        connectionStartTime = start
+        elapsedTimer?.invalidate()
+        elapsedTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            let elapsed = Int(Date().timeIntervalSince(start))
+            let h = elapsed / 3600
+            let m = (elapsed % 3600) / 60
+            let s = elapsed % 60
+            let text = h > 0
+                ? String(format: "%d:%02d:%02d", h, m, s)
+                : String(format: "%d:%02d", m, s)
+            Task { @MainActor in
+                self.connectionElapsed = text
+            }
+        }
     }
 }

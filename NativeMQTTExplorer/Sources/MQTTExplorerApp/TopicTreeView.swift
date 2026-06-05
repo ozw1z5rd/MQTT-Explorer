@@ -6,7 +6,8 @@ struct TopicTreeView: View {
 
     @State private var searchText: String = ""
     @State private var selectedPath: String?
-    @State private var showLogs: Bool = false
+    @State private var expandedPaths: Set<String> = []
+    @State private var collapsedPaths: Set<String> = []
 
     private var selectedNode: TreeNode<AppViewModelNode>? {
         guard let path = selectedPath else { return nil }
@@ -15,35 +16,51 @@ struct TopicTreeView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $selectedPath) {
-                Section(header: connectionHeader) {
-                    if viewModel.rootEdgeNames.isEmpty {
-                        waitingView
-                    } else {
-                        ForEach(filteredNames, id: \.self) { name in
-                            if let edge = viewModel.tree.edges[name] {
-                                OutlineGroup(edge, id: \.id, children: \.children) { edge in
-                                    EdgeRowView(edge: edge)
-                                        .tag(edge.target?.path() ?? "")
+            VStack(spacing: 0) {
+                
+                // Debug indicator
+                if !viewModel.rootEdgeNames.isEmpty {
+                    Text("Roots: \(viewModel.rootEdgeNames.joined(separator: ", ")) (v\(viewModel.treeVersion)) · \(viewModel.totalMessageCount) msgs · \(viewModel.connectionElapsed)")
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 2)
+                }
+
+                // Connection status
+                connectionHeader
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 4)
+
+                Divider()
+
+                // Tree content
+                if viewModel.rootEdgeNames.isEmpty {
+                    waitingView
+                } else {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 5) {
+                            ForEach(filteredNames, id: \.self) { name in
+                                if let edge = viewModel.tree.edges[name] {
+                                    TreeDisclosureGroup(
+                                        edge: edge,
+                                        selectedPath: $selectedPath,
+                                        expandedPaths: $expandedPaths,
+                                        collapsedPaths: $collapsedPaths
+                                    )
                                 }
                             }
                         }
+                        .padding(.vertical, 4)
                     }
                 }
             }
-            .listStyle(.sidebar)
             .searchable(text: $searchText, prompt: "Filter topics...")
             .toolbar {
                 ToolbarItem(placement: .navigation) {
                     Button(action: { viewModel.disconnect() }) {
                         Label("Disconnect", systemImage: "xmark.circle")
                     }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button(action: { showLogs.toggle() }) {
-                        Label("Logs", systemImage: "list.bullet.rectangle")
-                    }
-                    .help("Show message log")
                 }
             }
         } detail: {
@@ -53,27 +70,20 @@ struct TopicTreeView: View {
                 placeholderView
             }
         }
-        .sheet(isPresented: $showLogs) {
-            LogViewerView()
-                .frame(minWidth: 700, idealWidth: 900, minHeight: 500, idealHeight: 600)
-        }
     }
 
     // MARK: - Subviews
 
     private var waitingView: some View {
-        HStack {
+        VStack(spacing: 8) {
             Spacer()
-            VStack(spacing: 8) {
-                ProgressView()
-                    .scaleEffect(0.8)
-                Text("Waiting for messages...")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
+            ProgressView().scaleEffect(0.8)
+            Text("Waiting for messages...")
+                .font(.caption)
+                .foregroundColor(.secondary)
             Spacer()
         }
-        .padding(.vertical, 20)
+        .frame(maxWidth: .infinity)
     }
 
     private var placeholderView: some View {
@@ -120,23 +130,79 @@ struct TopicTreeView: View {
     }
 }
 
-// MARK: - Edge Row View
+// MARK: - Recursive Tree Disclosure Group
 
-private struct EdgeRowView: View {
+private struct TreeDisclosureGroup: View {
     let edge: MQTTExplorerBackend.Edge<AppViewModelNode>
+    @Binding var selectedPath: String?
+    @Binding var expandedPaths: Set<String>
+    @Binding var collapsedPaths: Set<String>
+
+    private var node: TreeNode<AppViewModelNode>? { edge.target }
+    private var path: String { node?.path() ?? edge.name }
+    private var hasChildren: Bool { !(node?.edgeArray.isEmpty ?? true) }
 
     var body: some View {
-        Label {
-            Text(edge.name)
-                .fontWeight(hasChildren ? .semibold : .medium)
-        } icon: {
-            Image(systemName: hasChildren ? "folder" : "doc.text")
-                .foregroundColor(hasChildren ? .orange : .blue)
+        if hasChildren {
+            DisclosureGroup(isExpanded: Binding(
+                get: { expandedPaths.contains(path) },
+                set: { newValue in
+                    if newValue {
+                        expandedPaths.insert(path)
+                        collapsedPaths.remove(path)
+                    } else {
+                        expandedPaths.remove(path)
+                        collapsedPaths.insert(path)
+                    }
+                }
+            )) {
+                ForEach(node?.edgeArray ?? [], id: \.name) { childEdge in
+                    TreeDisclosureGroup(
+                        edge: childEdge,
+                        selectedPath: $selectedPath,
+                        expandedPaths: $expandedPaths,
+                        collapsedPaths: $collapsedPaths
+                    )
+                    .padding(.leading, 16)
+                }
+            } label: {
+                rowLabel
+            }
+        } else {
+            rowLabel
+                .padding(.leading, 20)
         }
     }
 
-    private var hasChildren: Bool {
-        !(edge.target?.edgeArray.isEmpty ?? true)
+    private var rowLabel: some View {
+        Button(action: {
+            selectedPath = path
+        }) {
+            HStack(spacing: 6) {
+                Image(systemName: hasChildren ? "folder" : "doc.text")
+                    .foregroundColor(hasChildren ? .orange : .blue)
+                    .font(.system(size: 12))
+                Text(edge.name)
+                    .fontWeight(hasChildren ? .semibold : .medium)
+                    .font(.system(size: 12))
+                    .lineLimit(1)
+                Spacer()
+                if let msg = node?.message, let payload = msg.payload {
+                    Text(payload.toUnicodeString())
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(selectedPath == path
+                        ? Color.accentColor.opacity(0.15)
+                        : Color.clear)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -152,7 +218,6 @@ private struct NodeDetailView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Topic info header
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Image(systemName: "antenna.radiowaves.left.and.right")
@@ -181,11 +246,9 @@ private struct NodeDetailView: View {
 
             Divider()
 
-            // Payload display
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text("Payload")
-                        .font(.headline)
+                    Text("Payload").font(.headline)
                     Spacer()
                     Picker("Format", selection: $selectedFormat) {
                         Text("String").tag(TopicDataType.string)
@@ -219,26 +282,20 @@ private struct NodeDetailView: View {
 
             Divider()
 
-            // Message history
             if node.messageHistory.count > 1 {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Message History (\(node.messageHistory.count))")
-                        .font(.headline)
+                    Text("Message History (\(node.messageHistory.count))").font(.headline)
                     ScrollView {
                         VStack(alignment: .leading, spacing: 4) {
                             ForEach(Array(node.messageHistory.toArray().enumerated().reversed()), id: \.offset) { _, msg in
                                 HStack {
                                     Text(msg.received, style: .time)
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+                                        .font(.caption).foregroundColor(.secondary)
                                     Text(msg.topic.components(separatedBy: "/").last ?? msg.topic)
-                                        .font(.caption)
-                                        .fontWeight(.medium)
+                                        .font(.caption).fontWeight(.medium)
                                     if let p = msg.payload {
                                         Text(p.toUnicodeString().prefix(60))
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                            .lineLimit(1)
+                                            .font(.caption).foregroundColor(.secondary).lineLimit(1)
                                     }
                                 }
                             }
@@ -250,25 +307,15 @@ private struct NodeDetailView: View {
 
             Divider()
 
-            // Publish
             VStack(alignment: .leading, spacing: 8) {
-                Text("Publish to this topic")
-                    .font(.headline)
+                Text("Publish to this topic").font(.headline)
                 HStack {
                     TextField("Topic", text: $publishTopic)
                         .textFieldStyle(.roundedBorder)
-                        .onAppear {
-                            if publishTopic.isEmpty {
-                                publishTopic = node.path()
-                            }
-                        }
+                        .onAppear { if publishTopic.isEmpty { publishTopic = node.path() } }
                     Button("Send") {
-                        viewModel.publish(
-                            topic: publishTopic,
-                            payload: publishPayload,
-                            qos: .atMostOnce,
-                            retain: false
-                        )
+                        viewModel.publish(topic: publishTopic, payload: publishPayload,
+                                          qos: .atMostOnce, retain: false)
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(publishTopic.isEmpty)
@@ -276,10 +323,8 @@ private struct NodeDetailView: View {
                 TextEditor(text: $publishPayload)
                     .font(.system(.body, design: .monospaced))
                     .frame(height: 80)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4)
-                            .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
-                    )
+                    .overlay(RoundedRectangle(cornerRadius: 4)
+                        .stroke(Color.secondary.opacity(0.3), lineWidth: 1))
             }
 
             Spacer()

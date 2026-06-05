@@ -40,7 +40,6 @@ public final class Tree<ViewModel: Destroyable>: TreeNode<ViewModel>, @unchecked
 
     /// Call this for each incoming MQTT message on this connection.
     public func receiveMessage(topic: String, payload: Base64Message?, qos: QoSType, retain: Bool, messageId: Int? = nil) {
-        Logger.shared.debug(category: "Tree", "Buffered message: \(topic) qos=\(qos.rawValue) retain=\(retain) size=\(payload?.length ?? 0)B")
         handleNewData(topic: topic, payload: payload, qos: qos, retain: retain, messageId: messageId)
     }
 
@@ -64,8 +63,9 @@ public final class Tree<ViewModel: Destroyable>: TreeNode<ViewModel>, @unchecked
 
     public func applyUnmergedChanges() {
         let batch = unmergedMessages.popAll()
-        if !batch.isEmpty {
-            Logger.shared.info(category: "Tree", "Applying \(batch.count) unmerged changes to tree")
+        if batch.isEmpty {
+            applyChangesHasCompleted = true
+            return
         }
         for item in batch {
             let subTree: Tree<ViewModel> = TreeNodeFactory.fromMessage(
@@ -83,7 +83,6 @@ public final class Tree<ViewModel: Destroyable>: TreeNode<ViewModel>, @unchecked
             updateWithNode(subTree)
         }
         didUpdate.dispatch(())
-        Logger.shared.debug(category: "Tree", "applyUnmergedChanges complete. Root edges: [\(edgeArray.map(\.name).joined(separator: ", "))]. \(childTopicCount()) topics, \(leafMessageCount()) leaf msgs")
         applyChangesHasCompleted = true
     }
 

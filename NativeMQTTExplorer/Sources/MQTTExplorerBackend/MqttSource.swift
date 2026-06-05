@@ -74,7 +74,6 @@ public final class MqttSource: NSObject, DataSource, @unchecked Sendable {
 
     public func connect(options: MqttOptions) {
         stateMachine.setConnecting()
-        Logger.shared.info(category: "MqttSource", "Connecting to \(options.url)...")
 
         let urlStr: String
         if options.tls {
@@ -89,10 +88,8 @@ public final class MqttSource: NSObject, DataSource, @unchecked Sendable {
             urlStr = options.url
         }
 
-        // Parse host and port
         guard let parsed = parseMQTTURL(urlStr) else {
             let errMsg = "Invalid MQTT URL: \(urlStr)"
-            Logger.shared.error(category: "MqttSource", errMsg)
             stateMachine.setError(NSError(domain: "MqttSource", code: -1,
                 userInfo: [NSLocalizedDescriptionKey: errMsg]))
             return
@@ -113,24 +110,18 @@ public final class MqttSource: NSObject, DataSource, @unchecked Sendable {
         mqttClient.keepAlive = 60
         mqttClient.delegate = self
 
-        // TLS certificates
         if useTLS {
             if let ca = options.certificateAuthority,
                let _ = Data(base64Encoded: ca) {
-                // CocoaMQTT uses SSL settings through its own mechanism;
-                // for server-side CA, we set allowUntrustCACertificate above.
-                // Client certs not fully exposed; this would require CocoaMQTT fork or custom SSL stream.
             }
         }
 
         pendingSubscriptions = options.subscriptions
         self.client = mqttClient
-        Logger.shared.debug(category: "MqttSource", "Client \(clientId) connecting to \(parsed.host):\(parsed.port) tls=\(useTLS) ws=\(useWebSocket)")
         let _ = mqttClient.connect()
     }
 
     public func disconnect() {
-        Logger.shared.info(category: "MqttSource", "Disconnecting...")
         client?.disconnect()
         client = nil
     }
@@ -145,7 +136,6 @@ public final class MqttSource: NSObject, DataSource, @unchecked Sendable {
             qos: cQos,
             retained: retain
         )
-        Logger.shared.info(category: "MqttSource", "Publishing to \(topic) qos=\(qos.rawValue) retain=\(retain) size=\(data.count)B")
         client.publish(msg)
     }
 }
@@ -154,16 +144,13 @@ public final class MqttSource: NSObject, DataSource, @unchecked Sendable {
 extension MqttSource: CocoaMQTTDelegate {
     public func mqtt(_ mqtt: CocoaMQTT, didConnectAck ack: CocoaMQTTConnAck) {
         if ack == .accept {
-            Logger.shared.info(category: "MqttSource", "Connected successfully. Subscribing to \(pendingSubscriptions.count) topic(s)")
             stateMachine.setConnected(true)
             for sub in pendingSubscriptions {
-                Logger.shared.debug(category: "MqttSource", "Subscribing to \(sub.topic) qos=\(sub.qos.rawValue)")
                 let cQos = CocoaMQTTQoS(rawValue: UInt8(sub.qos.rawValue)) ?? .qos0
                 mqtt.subscribe(sub.topic, qos: cQos)
             }
         } else {
             let errMsg = "Connection refused: \(ack)"
-            Logger.shared.error(category: "MqttSource", errMsg)
             stateMachine.setError(NSError(domain: "MqttSource", code: Int(ack.rawValue),
                 userInfo: [NSLocalizedDescriptionKey: errMsg]))
         }
@@ -181,15 +168,6 @@ extension MqttSource: CocoaMQTTDelegate {
             retain: message.retained
         )
 
-        let payloadPreview: String
-        if let p = payload {
-            let text = p.toUnicodeString()
-            payloadPreview = text.count > 80 ? String(text.prefix(80)) + "..." : text
-        } else {
-            payloadPreview = "<empty>"
-        }
-        Logger.shared.debug(category: "MQTT", "\(message.topic) qos=\(qosVal.rawValue) retain=\(message.retained) size=\(data.count)B payload=\(payloadPreview)")
-
         messageCallback?(message.topic, data, packet)
 
         // Route through the connection manager pipeline
@@ -197,12 +175,8 @@ extension MqttSource: CocoaMQTTDelegate {
     }
 
     public func mqtt(_ mqtt: CocoaMQTT, didSubscribeTopics success: NSDictionary, failed: [String]) {
-        Logger.shared.info(category: "MqttSource", "Subscribed to \(success.count) topic(s)")
-        let errors = failed.map { "Failed to subscribe to \($0)" }
-        if !errors.isEmpty {
-            for err in errors {
-                Logger.shared.error(category: "MqttSource", err)
-            }
+        if !failed.isEmpty {
+            let errors = failed.map { "Failed to subscribe to \($0)" }
             stateMachine.setError(NSError(domain: "MqttSource", code: -2,
                 userInfo: [NSLocalizedDescriptionKey: errors.joined(separator: ", ")]))
         }
@@ -215,10 +189,8 @@ extension MqttSource: CocoaMQTTDelegate {
 
     public func mqttDidDisconnect(_ mqtt: CocoaMQTT, withError err: Error?) {
         if let err {
-            Logger.shared.error(category: "MqttSource", "Disconnected with error: \(err.localizedDescription)")
             stateMachine.setError(err)
         } else {
-            Logger.shared.info(category: "MqttSource", "Disconnected")
             stateMachine.setConnected(false)
         }
     }

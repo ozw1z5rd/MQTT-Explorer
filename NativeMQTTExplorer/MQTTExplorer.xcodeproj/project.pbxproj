@@ -13,7 +13,7 @@
 		C0010004 /* TopicTreeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0010004; };
 		C0010005 /* AppViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0010005; };
 		C0010006 /* MQTTExplorerBackend in Frameworks */ = {isa = PBXBuildFile; productRef = P0010001; };
-		C0010007 /* LogViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0010007; };
+
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -22,7 +22,7 @@
 		F0010003 /* ConnectionSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionSetupView.swift; sourceTree = "<group>"; };
 		F0010004 /* TopicTreeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopicTreeView.swift; sourceTree = "<group>"; };
 		F0010005 /* AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppViewModel.swift; sourceTree = "<group>"; };
-		F0010007 /* LogViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogViewerView.swift; sourceTree = "<group>"; };
+
 		F0010006 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		P0010000 /* MQTTExplorer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "MQTTExplorer.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -56,7 +56,7 @@
 				F0010003 /* ConnectionSetupView.swift */,
 				F0010004 /* TopicTreeView.swift */,
 				F0010005 /* AppViewModel.swift */,
-				F0010007 /* LogViewerView.swift */,
+
 			);
 			path = Sources/MQTTExplorerApp;
 			sourceTree = "<group>";
@@ -137,7 +137,7 @@
 				C0010003 /* ConnectionSetupView.swift in Sources */,
 				C0010004 /* TopicTreeView.swift in Sources */,
 				C0010005 /* AppViewModel.swift in Sources */,
-				C0010007 /* LogViewerView.swift in Sources */,
+
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

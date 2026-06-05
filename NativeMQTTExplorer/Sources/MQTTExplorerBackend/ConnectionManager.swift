@@ -18,7 +18,6 @@ public final class ConnectionManager: @unchecked Sendable {
         onStateChange: @escaping (DataSourceState) -> Void
     ) -> MqttSource {
         lock.lock()
-        // Prevent double connections
         if let existing = connections[connectionId] {
             existing.disconnect()
         }
@@ -41,7 +40,6 @@ public final class ConnectionManager: @unchecked Sendable {
         }
 
         source.connect(options: options)
-        Logger.shared.info(category: "Connection", "Connect called for \(connectionId) → \(options.url)")
         return source
     }
 
@@ -53,7 +51,6 @@ public final class ConnectionManager: @unchecked Sendable {
     }
 
     public func disconnect(connectionId: String) {
-        Logger.shared.info(category: "Connection", "Disconnecting \(connectionId)")
         lock.lock()
         let source = connections[connectionId]
         connections.removeValue(forKey: connectionId)
@@ -63,7 +60,6 @@ public final class ConnectionManager: @unchecked Sendable {
     }
 
     public func disconnectAll() {
-        Logger.shared.info(category: "Connection", "Disconnecting all (\(connections.count) connection(s))")
         lock.lock()
         let all = connections
         connections.removeAll()
