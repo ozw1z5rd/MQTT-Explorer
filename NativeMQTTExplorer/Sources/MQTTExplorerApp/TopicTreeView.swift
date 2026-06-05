@@ -1,15 +1,6 @@
 import SwiftUI
 import MQTTExplorerBackend
 
-/// Identifiable wrapper for tree nodes so they can be used with List selection.
-private struct NodeIdentifier: Hashable {
-    let path: String
-
-    init(_ node: TreeNode<AppViewModelNode>) {
-        self.path = node.path()
-    }
-}
-
 struct TopicTreeView: View {
     @ObservedObject var viewModel: AppViewModel
 
@@ -24,25 +15,18 @@ struct TopicTreeView: View {
 
     var body: some View {
         NavigationSplitView {
-            // Sidebar: tree
             List(selection: $selectedPath) {
                 Section(header: connectionHeader) {
-                    if rootEdges.isEmpty {
-                        HStack {
-                            Spacer()
-                            VStack(spacing: 8) {
-                                ProgressView()
-                                    .scaleEffect(0.8)
-                                Text("Waiting for messages...")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            Spacer()
-                        }
-                        .padding(.vertical, 20)
+                    if viewModel.rootEdgeNames.isEmpty {
+                        waitingView
                     } else {
-                        ForEach(filteredEdges, id: \.name) { edge in
-                            TreeNodeRow(edge: edge, searchFilter: searchText)
+                        ForEach(filteredNames, id: \.self) { name in
+                            if let edge = viewModel.tree.edges[name] {
+                                OutlineGroup(edge, id: \.id, children: \.children) { edge in
+                                    EdgeRowView(edge: edge)
+                                        .tag(edge.target?.path() ?? "")
+                                }
+                            }
                         }
                     }
                 }
@@ -63,18 +47,10 @@ struct TopicTreeView: View {
                 }
             }
         } detail: {
-            // Detail: selected node info
             if let node = selectedNode {
                 NodeDetailView(node: node, viewModel: viewModel)
             } else {
-                VStack {
-                    Image(systemName: "tree")
-                        .font(.system(size: 48))
-                        .foregroundColor(.secondary)
-                    Text("Select a topic to view details")
-                        .font(.title3)
-                        .foregroundColor(.secondary)
-                }
+                placeholderView
             }
         }
         .sheet(isPresented: $showLogs) {
@@ -83,16 +59,54 @@ struct TopicTreeView: View {
         }
     }
 
-    // MARK: - Helpers
+    // MARK: - Subviews
 
-    private var rootEdges: [MQTTExplorerBackend.Edge<AppViewModelNode>] {
-        viewModel.rootEdges
+    private var waitingView: some View {
+        HStack {
+            Spacer()
+            VStack(spacing: 8) {
+                ProgressView()
+                    .scaleEffect(0.8)
+                Text("Waiting for messages...")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 20)
     }
 
-    private var filteredEdges: [MQTTExplorerBackend.Edge<AppViewModelNode>] {
-        guard !searchText.isEmpty else { return rootEdges }
-        return rootEdges.filter { edge in
-            edgeMatchesSearch(edge, query: searchText.lowercased())
+    private var placeholderView: some View {
+        VStack {
+            Image(systemName: "tree")
+                .font(.system(size: 48))
+                .foregroundColor(.secondary)
+            Text("Select a topic to view details")
+                .font(.title3)
+                .foregroundColor(.secondary)
+        }
+    }
+
+    private var connectionHeader: some View {
+        HStack {
+            Circle()
+                .fill(viewModel.connectionState.connected ? Color.green : Color.red)
+                .frame(width: 8, height: 8)
+            Text(viewModel.connectionState.connected
+                 ? "Connected to \(viewModel.connectedHost)"
+                 : "Disconnected")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
+
+    // MARK: - Helpers
+
+    private var filteredNames: [String] {
+        guard !searchText.isEmpty else { return viewModel.rootEdgeNames }
+        return viewModel.rootEdgeNames.filter { name in
+            guard let edge = viewModel.tree.edges[name] else { return false }
+            return edgeMatchesSearch(edge, query: searchText.lowercased())
         }
     }
 
@@ -104,55 +118,25 @@ struct TopicTreeView: View {
         }
         return false
     }
-
-    private var connectionHeader: some View {
-        HStack {
-            Circle()
-                .fill(viewModel.connectionState.connected ? Color.green : Color.red)
-                .frame(width: 8, height: 8)
-            Text(viewModel.connectionState.connected ? "Connected to \(viewModel.connectedHost)" : "Disconnected")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-    }
 }
 
-// MARK: - Tree Node Row
+// MARK: - Edge Row View
 
-private struct TreeNodeRow: View {
+private struct EdgeRowView: View {
     let edge: MQTTExplorerBackend.Edge<AppViewModelNode>
-    var searchFilter: String
 
     var body: some View {
-        if let node = edge.target {
-            if node.edgeArray.isEmpty {
-                // Leaf
-                Label {
-                    Text(edge.name)
-                        .fontWeight(.medium)
-                } icon: {
-                    Image(systemName: "doc.text")
-                        .foregroundColor(.blue)
-                }
-                .tag(node.path())
-            } else {
-                // Branch
-                DisclosureGroup {
-                    ForEach(node.edgeArray, id: \.name) { childEdge in
-                        TreeNodeRow(edge: childEdge, searchFilter: searchFilter)
-                    }
-                } label: {
-                    Label {
-                        Text(edge.name)
-                            .fontWeight(.semibold)
-                    } icon: {
-                        Image(systemName: "folder")
-                            .foregroundColor(.orange)
-                    }
-                }
-                .tag(node.path())
-            }
+        Label {
+            Text(edge.name)
+                .fontWeight(hasChildren ? .semibold : .medium)
+        } icon: {
+            Image(systemName: hasChildren ? "folder" : "doc.text")
+                .foregroundColor(hasChildren ? .orange : .blue)
         }
+    }
+
+    private var hasChildren: Bool {
+        !(edge.target?.edgeArray.isEmpty ?? true)
     }
 }
 

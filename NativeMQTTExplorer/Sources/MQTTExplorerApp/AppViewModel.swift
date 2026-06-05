@@ -14,6 +14,7 @@ final class AppViewModel: ObservableObject {
     @Published var treeVersion: Int = 0
     @Published var connectedHost: String = ""
     @Published var isConnecting: Bool = false
+    @Published var rootEdgeNames: [String] = []
 
     let connectionManager = ConnectionManager()
     let tree = Tree<AppViewModelNode>()
@@ -49,15 +50,13 @@ final class AppViewModel: ObservableObject {
             options: options,
             onMessage: { [weak self] topic, payload, qos, retain, msgId in
                 guard let self else { return }
-                Task { @MainActor in
-                    self.tree.receiveMessage(
-                        topic: topic,
-                        payload: payload,
-                        qos: qos,
-                        retain: retain,
-                        messageId: msgId
-                    )
-                }
+                self.tree.receiveMessage(
+                    topic: topic,
+                    payload: payload,
+                    qos: qos,
+                    retain: retain,
+                    messageId: msgId
+                )
             },
             onStateChange: { [weak self] state in
                 guard let self else { return }
@@ -75,9 +74,8 @@ final class AppViewModel: ObservableObject {
         // Observe tree updates for UI refresh
         tree.didUpdate.subscribe { [weak self] in
             guard let self else { return }
-            Task { @MainActor in
-                self.treeVersion += 1
-            }
+            self.treeVersion += 1
+            self.rootEdgeNames = self.tree.edgeArray.map(\.name)
         }
     }
 

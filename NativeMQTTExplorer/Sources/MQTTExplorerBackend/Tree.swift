@@ -10,7 +10,7 @@ public final class Tree<ViewModel: Destroyable>: TreeNode<ViewModel>, @unchecked
     private var paused: Bool = false
     private var applyChangesHasCompleted: Bool = true
     private var updateTimer: DispatchSourceTimer?
-    private let updateQueue = DispatchQueue(label: "mqtt.tree.updates", qos: .utility)
+    private let updateQueue = DispatchQueue.main
 
     public init() {
         super.init()
@@ -83,6 +83,7 @@ public final class Tree<ViewModel: Destroyable>: TreeNode<ViewModel>, @unchecked
             updateWithNode(subTree)
         }
         didUpdate.dispatch(())
+        Logger.shared.debug(category: "Tree", "applyUnmergedChanges complete. Root edges: [\(edgeArray.map(\.name).joined(separator: ", "))]. \(childTopicCount()) topics, \(leafMessageCount()) leaf msgs")
         applyChangesHasCompleted = true
     }
 

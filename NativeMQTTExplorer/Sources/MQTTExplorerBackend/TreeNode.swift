@@ -157,8 +157,10 @@ public class TreeNode<ViewModel: Destroyable>: Destroyable, @unchecked Sendable 
         var edgesDidUpdate = false
         for (key, incomingEdge) in node.edges {
             if let existing = edges[key] {
+                Logger.shared.debug(category: "Tree", "Merging existing edge \(key) at \(self.path())")
                 existing.target?.updateWithNode(incomingEdge.target!)
             } else {
+                Logger.shared.debug(category: "Tree", "Adding new edge \(key) at \(self.path())")
                 addEdge(incomingEdge, emitUpdate: false)
                 edgesDidUpdate = true
             }
@@ -170,6 +172,7 @@ public class TreeNode<ViewModel: Destroyable>: Destroyable, @unchecked Sendable 
 
     public func updateWithNode(_ node: TreeNode<ViewModel>) {
         if let msg = node.message {
+            Logger.shared.debug(category: "Tree", "setMessage at \(self.path()) payload=\(msg.payload?.toUnicodeString().prefix(40) ?? "<nil>")")
             setMessage(msg)
             onMessage.dispatch(msg)
         }

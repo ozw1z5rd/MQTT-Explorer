@@ -87,8 +87,8 @@ struct ConnectionSetupView: View {
                 // Quick connect presets
                 Section("Quick Connect") {
                     HStack(spacing: 12) {
-                        QuickConnectButton(label: "test.mosquitto.org", host: "test.mosquitto.org", port: "1883") {
-                            fillConnection(host: "test.mosquitto.org", port: "1883")
+                        QuickConnectButton(label: "homebridge.local", host: "homebridge.local", port: "1883") {
+                            fillConnection(host: "homebridge.local", port: "1883")
                         }
                         QuickConnectButton(label: "eclipseprojects.io", host: "mqtt.eclipseprojects.io", port: "1883") {
                             fillConnection(host: "mqtt.eclipseprojects.io", port: "1883")
