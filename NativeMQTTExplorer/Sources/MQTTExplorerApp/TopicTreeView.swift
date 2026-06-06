@@ -52,6 +52,7 @@ struct TopicTreeView: View {
                             }
                         }
                         .padding(.vertical, 4)
+                        .padding(.leading, 5)
                     }
                 }
             }
@@ -66,6 +67,7 @@ struct TopicTreeView: View {
         } detail: {
             if let node = selectedNode {
                 NodeDetailView(node: node, viewModel: viewModel)
+                    .id(node.path())
             } else {
                 placeholderView
             }
@@ -176,10 +178,20 @@ private struct TreeDisclosureGroup: View {
 
     private var rowLabel: some View {
         Button(action: {
-            selectedPath = path
+            if hasChildren {
+                if expandedPaths.contains(path) {
+                    expandedPaths.remove(path)
+                    collapsedPaths.insert(path)
+                } else {
+                    expandedPaths.insert(path)
+                    collapsedPaths.remove(path)
+                }
+            } else {
+                selectedPath = path
+            }
         }) {
             HStack(spacing: 6) {
-                Image(systemName: hasChildren ? "folder" : "doc.text")
+                Image(systemName: hasChildren ? "folder.fill" : "doc.text")
                     .foregroundColor(hasChildren ? .orange : .blue)
                     .font(.system(size: 12))
                 Text(edge.name)
@@ -215,6 +227,10 @@ private struct NodeDetailView: View {
     @State private var publishTopic: String = ""
     @State private var publishPayload: String = ""
     @State private var selectedFormat: TopicDataType = .string
+    @State private var isPaused: Bool = false
+    @State private var frozenPayload: Base64Message?
+    @State private var frozenTimestamp: Date?
+    @State private var selectedHistoryId: Date?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -250,6 +266,18 @@ private struct NodeDetailView: View {
                 HStack {
                     Text("Payload").font(.headline)
                     Spacer()
+                    Button(action: {
+                        isPaused.toggle()
+                        if !isPaused && selectedHistoryId != nil {
+                            frozenPayload = nil
+                            frozenTimestamp = nil
+                            selectedHistoryId = nil
+                        }
+                    }) {
+                        Image(systemName: isPaused ? "play.fill" : "pause.fill")
+                    }
+                    .buttonStyle(.borderless)
+                    .help(isPaused ? "Resume live updates" : "Pause live updates")
                     Picker("Format", selection: $selectedFormat) {
                         Text("String").tag(TopicDataType.string)
                         Text("JSON").tag(TopicDataType.json)
@@ -259,7 +287,8 @@ private struct NodeDetailView: View {
                     .frame(width: 200)
                 }
 
-                if let message = node.message, let payload = message.payload {
+                let displayPayload: Base64Message? = isPaused ? frozenPayload : node.message?.payload
+                if let payload = displayPayload {
                     let (formatted, _) = payload.format(type: selectedFormat)
                     ScrollView {
                         Text(formatted)
@@ -268,8 +297,17 @@ private struct NodeDetailView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(12)
                     }
-                    .background(Color(nsColor: .textBackgroundColor))
+                    .background(isPaused && frozenPayload != nil
+                        ? Color.accentColor.opacity(0.08)
+                        : Color(nsColor: .textBackgroundColor))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                    if let ts = (isPaused ? frozenTimestamp : node.message?.received) {
+                        Text("Received: \(ts, style: .date) \(ts, style: .time)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .padding(.top, 2)
+                    }
                 } else {
                     Text("No payload")
                         .foregroundColor(.secondary)
@@ -285,22 +323,30 @@ private struct NodeDetailView: View {
             if node.messageHistory.count > 1 {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Message History (\(node.messageHistory.count))").font(.headline)
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 4) {
-                            ForEach(Array(node.messageHistory.toArray().enumerated().reversed()), id: \.offset) { _, msg in
-                                HStack {
-                                    Text(msg.received, style: .time)
+                    List(Array(node.messageHistory.toArray().enumerated().reversed()), id: \.offset) { index, msg in
+                        Button(action: {
+                            frozenPayload = msg.payload
+                            frozenTimestamp = msg.received
+                            selectedHistoryId = msg.received
+                            isPaused = true
+                        }) {
+                            HStack {
+                                Text(msg.received, style: .time)
+                                    .font(.caption).foregroundColor(.secondary)
+                                Text(msg.topic.components(separatedBy: "/").last ?? msg.topic)
+                                    .font(.caption).fontWeight(.medium)
+                                if let p = msg.payload {
+                                    Text(p.toUnicodeString())
                                         .font(.caption).foregroundColor(.secondary)
-                                    Text(msg.topic.components(separatedBy: "/").last ?? msg.topic)
-                                        .font(.caption).fontWeight(.medium)
-                                    if let p = msg.payload {
-                                        Text(p.toUnicodeString().prefix(60))
-                                            .font(.caption).foregroundColor(.secondary).lineLimit(1)
-                                    }
                                 }
                             }
                         }
+                        .buttonStyle(.plain)
+                        .listRowBackground(selectedHistoryId == msg.received
+                            ? Color.accentColor.opacity(0.25)
+                            : (index % 2 == 0 ? Color.clear : Color.primary.opacity(0.04)))
                     }
+                    .listStyle(.plain)
                     .frame(maxHeight: 150)
                 }
             }

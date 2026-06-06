@@ -29,8 +29,10 @@ final class AppViewModel: ObservableObject {
         // Subscribe once to tree updates
         tree.didUpdate.subscribe { [weak self] in
             guard let self else { return }
-            self.treeVersion += 1
-            self.rootEdgeNames = self.tree.edgeArray.map(\.name)
+            DispatchQueue.main.async {
+                self.treeVersion += 1
+                self.rootEdgeNames = self.tree.edgeArray.map(\.name)
+            }
         }
     }
 
@@ -59,7 +61,6 @@ final class AppViewModel: ObservableObject {
             options: options,
             onMessage: { [weak self] topic, payload, qos, retain, msgId in
                 guard let self else { return }
-                self.totalMessageCount &+= 1
                 self.tree.receiveMessage(
                     topic: topic,
                     payload: payload,
@@ -67,6 +68,9 @@ final class AppViewModel: ObservableObject {
                     retain: retain,
                     messageId: msgId
                 )
+                Task { @MainActor in
+                    self.totalMessageCount &+= 1
+                }
             },
             onStateChange: { [weak self] state in
                 guard let self else { return }

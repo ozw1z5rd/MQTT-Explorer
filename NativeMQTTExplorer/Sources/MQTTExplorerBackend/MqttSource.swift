@@ -108,6 +108,7 @@ public final class MqttSource: NSObject, DataSource, @unchecked Sendable {
         mqttClient.allowUntrustCACertificate = !options.certValidation
         mqttClient.autoReconnect = true
         mqttClient.keepAlive = 60
+        mqttClient.delegateQueue = DispatchQueue(label: "group.homecomputer.app.macos.mqttexplorer.cocoamqtt", qos: .userInitiated)
         mqttClient.delegate = self
 
         if useTLS {

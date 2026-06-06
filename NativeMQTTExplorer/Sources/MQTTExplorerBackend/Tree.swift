@@ -10,7 +10,7 @@ public final class Tree<ViewModel: Destroyable>: TreeNode<ViewModel>, @unchecked
     private var paused: Bool = false
     private var applyChangesHasCompleted: Bool = true
     private var updateTimer: DispatchSourceTimer?
-    private let updateQueue = DispatchQueue.main
+    private let updateQueue = DispatchQueue(label: "group.homecomputer.app.macos.mqttexplorer.tree", qos: .userInitiated)
 
     public init() {
         super.init()
