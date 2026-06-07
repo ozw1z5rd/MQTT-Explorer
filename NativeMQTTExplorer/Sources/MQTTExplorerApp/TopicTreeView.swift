@@ -299,6 +299,7 @@ private struct NodeDetailView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(12)
                     }
+                    .id("\(selectedFormat.rawValue)-\(displayPayload?.base64String.prefix(40) ?? "nil")")
                     .background(isPaused && frozenPayload != nil
                         ? Color.accentColor.opacity(0.08)
                         : Color(nsColor: .textBackgroundColor))
