@@ -14,6 +14,7 @@ screen*.png
 mqtt-explorer-mcp-screenshot.png
 screenshot-mcp-*.png
 test-mcp-introspection.js
+UserInterfaceState.xcuserstate
 
 /data
 test-screenshot-*.png
