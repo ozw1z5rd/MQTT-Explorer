@@ -2,7 +2,7 @@
 
 A native macOS app for browsing and visualizing MQTT topics in real-time. Built with SwiftUI and CocoaMQTT.
 
-<img src="Images/NativeMQTTExplorer.png" width="512" alt="Native MQTT Explorer">
+<img src="images/NativeMQTTExplorer.png" width="512" alt="Native MQTT Explorer">
 
 
 ## Features
