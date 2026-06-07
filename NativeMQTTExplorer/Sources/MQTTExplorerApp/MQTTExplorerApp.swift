@@ -4,8 +4,6 @@ import AppKit
 @main
 struct MQTTExplorerApp: App {
     init() {
-        // Ensure the app activates as a proper foreground GUI application,
-        // which is needed when launched from Xcode's SPM executable scheme.
         NSApplication.shared.setActivationPolicy(.regular)
     }
 
@@ -20,6 +18,17 @@ struct MQTTExplorerApp: App {
         .defaultSize(width: 900, height: 700)
         .commands {
             CommandGroup(replacing: .newItem) {}
+            CommandGroup(replacing: .appInfo) {
+                Button("About MQTT Explorer") {
+                    let controller = NSHostingController(rootView: AboutView())
+                    let window = NSWindow(contentViewController: controller)
+                    window.title = "About MQTT Explorer"
+                    window.styleMask = [.titled, .closable]
+                    window.setContentSize(NSSize(width: 320, height: 340))
+                    window.center()
+                    window.makeKeyAndOrderFront(nil)
+                }
+            }
         }
     }
 }

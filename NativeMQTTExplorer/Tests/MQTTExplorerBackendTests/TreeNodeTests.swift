@@ -129,7 +129,7 @@ private var retainedTrees: [AnyObject] = []
 
 private func makeTreeNode(topic: String, message: String? = nil) -> TreeNode<MockViewModel> {
     let payload = message.map { Base64Message.from(string: $0) }
-    let tree = TreeNodeFactory.fromMessage(topic: topic, payload: payload)
+    let tree: Tree<MockViewModel> = TreeNodeFactory.fromMessage(topic: topic, payload: payload)
     retainedTrees.append(tree)
     return tree.findNode(path: topic) ?? tree
 }

@@ -18,19 +18,21 @@ struct TopicTreeView: View {
         NavigationSplitView {
             VStack(spacing: 0) {
                 
-                // Debug indicator
-                if !viewModel.rootEdgeNames.isEmpty {
-                    Text("Roots: \(viewModel.rootEdgeNames.joined(separator: ", ")) (v\(viewModel.treeVersion)) · \(viewModel.totalMessageCount) msgs · \(viewModel.connectionElapsed)")
-                        .font(.system(size: 9, design: .monospaced))
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 2)
-                }
+
 
                 // Connection status
                 connectionHeader
                     .padding(.horizontal, 12)
                     .padding(.vertical, 4)
+                
+                // Debug indicator
+                if !viewModel.rootEdgeNames.isEmpty {
+                    Text("\(viewModel.totalMessageCount) msgs · Elapsed time: \(viewModel.connectionElapsed)")
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 2)
+                }
 
                 Divider()
 
